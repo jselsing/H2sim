@@ -15,6 +15,7 @@ COMPONENTS = list(np.array([-0.0015, -0.0004, 0.000, 0.0003, 0.0006, 0.0010]) + 
 WEIGHTS = [0.5, 0.3, 1.0, 0.2, 0.8, 0.5]
 TEMP = 100 # Temperature of H2
 RES = 0.2 # Resolution of spectrum in AA
+R = 10000 # Instrimental resolution
 NTOTH2s = [20.5] # Total column density of H2
 #NTOTH2s = [0, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
 
@@ -51,7 +52,7 @@ for n in N:
         S[ii] = w*10**N[n]
     N_tot[n] = np.log10(np.sum(S))
     S = 0
-print(N_tot)
+print("N_tot: ", N_tot)
 # Broadening parameter in km/s
 b = {'ALL': 25, 'H2' : 10}
 
@@ -223,7 +224,7 @@ for NTOTH2 in NTOTH2s:
     f.write('#NH = %.2f\n' %N['HI'])
     f.write('#NH2 = %.2f at T = %i K\n' %(NTOTH2, TEMP))
     f.write('#Redshift = %.4f\n' %(z))
-    spec_conv, fwhm = pyasl.instrBroadGaussFast(wls, spec, 10000,
+    spec_conv, fwhm = pyasl.instrBroadGaussFast(wls, spec, R,
           edgeHandling="firstlast", fullout=True)
     for wl, s in zip(wls, spec_conv+dspec):
         f.write('%.2f\t%.3f\n' %(wl, s))
