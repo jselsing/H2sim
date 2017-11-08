@@ -2,39 +2,56 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+import matplotlib; matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from scipy import random
 from scipy.ndimage import gaussian_filter1d
 from scipy.interpolate import splrep, splev
+from PyAstronomy import pyasl
 
 SN = 30. # Signal to noise
 z = 2.3538 # Redshift
+COMPONENTS = list(np.array([-0.0015, -0.0004, 0.000, 0.0003, 0.0006, 0.0010]) + z)
+WEIGHTS = [0.5, 0.3, 1.0, 0.2, 0.8, 0.5]
 TEMP = 100 # Temperature of H2
-RES = 0.15 # Resolution of spectrum in AA
+RES = 0.2 # Resolution of spectrum in AA
 NTOTH2s = [20.5] # Total column density of H2
 #NTOTH2s = [0, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
 
 NROT = [0, 1, 2, 3] # Rotational levels to consider, maximum 3
 DOH2, DOH2S = False, False # Add H2, H2* to spectrum
-DOEXC = True # Add finstructure and excited lines
+DOEXC = False # Add finstructure and excited lines
 WLRANGE = [900., 3000.] # Wavelength range to plot/write out
-MH2Ss = [0.00, 0.02, 0.05, 0.1, 0.15, 0.2, 0.3, 0.5]  #Multiplier of Draine model with NH2* = 6.73E+16
-#MH2Ss = [0.03]
+# MH2Ss = [0.00, 0.02, 0.05, 0.1, 0.15, 0.2, 0.3, 0.5]  #Multiplier of Draine model with NH2* = 6.73E+16
+MH2Ss = [0.0]
 
 # Column densities, need to follow the same naming convention as in atom.dat
+# N = {'HI' : 21.95, 'SiII' : 14.20}
+
+
+
 N = {'HI' : 21.95, 'FeII' : 15.29, 'MnII' : 13.2, 'NV':14.8,
      'SiII': 16.3, 'SII' : 15.2, 'CIV': 12.8, 'OI': 17,
      'CII': 16.5, 'NiII': 14.2 , 'SiIV': 12.3, 'AlII': 14.3,
      'AlIII':13.3, 'CI': 13.41, 'ZnII': 13.47, 'CrII': 13.75,
      'MgII':18.0, 'MgI':16.0}
 
-# N = {'HI' : 21.95}
 
 # Column densities of excited transition, need to be the same name as in
 # atom_excited.dat
 Nexc = {'FeIIa' : 13.32, 'FeIIb':13.11, 'OIa':15.29,
         'SiIIa': 14.31, 'NiIIa':13.23}
 
+
+
+N_tot = {}
+for n in N:
+    S = [0]*len(WEIGHTS)
+    for ii, w in enumerate(WEIGHTS):
+        S[ii] = w*10**N[n]
+    N_tot[n] = np.log10(np.sum(S))
+    S = 0
+print(N_tot)
 # Broadening parameter in km/s
 b = {'ALL': 25, 'H2' : 10}
 
@@ -87,7 +104,6 @@ def fNHII(T, J):
 #    return NH2
 
 for NTOTH2 in NTOTH2s:
-  print(NTOTH2)
   for MH2S in MH2Ss:
     wls = np.arange(WLRANGE[0]*(1+z), WLRANGE[1]*(1+z), RES)
     spec = np.ones(len(wls))
@@ -137,32 +153,11 @@ for NTOTH2 in NTOTH2s:
     af = open ('atom.dat', 'r')
     atom = af.readlines()
     af.close()
-
-    for a in atom:
-        a = a.split()
-        if a[0] in N.keys():
-            lamb = float(a[1])
-            f = float(a[2])
-            gamma = float(a[3])
-            if a[0] in b:
-                broad = b[a[0]] * 1E5
-            else:
-                broad = b['ALL'] * 1E5
-            nion = 10**N[a[0]]
-            spec *= addAbs(wls, nion, lamb, f, gamma, broad, z)
-
-    #==============================================================================
-    # Excited transitions
-    #==============================================================================
-
-    if DOEXC == True:
-        af = open ('atom_excited.dat', 'r')
-        atomexc = af.readlines()
-        af.close()
-
-        for a in atomexc:
+    for zz, ww in list(zip(COMPONENTS, WEIGHTS)):
+        print(zz, ww)
+        for a in atom:
             a = a.split()
-            if a[0] in Nexc.keys():
+            if a[0] in N.keys():
                 lamb = float(a[1])
                 f = float(a[2])
                 gamma = float(a[3])
@@ -170,8 +165,32 @@ for NTOTH2 in NTOTH2s:
                     broad = b[a[0]] * 1E5
                 else:
                     broad = b['ALL'] * 1E5
-                nion = 10**Nexc[a[0]]
-                spec *= addAbs(wls, nion, lamb, f, gamma, broad, z)
+                nion = 10**N[a[0]]
+                # print(a[0], 10**N[a[0]]*ww)
+                spec *= addAbs(wls, nion*ww, lamb, f, gamma, broad, zz)
+
+        #==============================================================================
+        # Excited transitions
+        #==============================================================================
+
+        if DOEXC == True:
+            af = open ('atom_excited.dat', 'r')
+            atomexc = af.readlines()
+            af.close()
+
+            for a in atomexc:
+                a = a.split()
+                if a[0] in Nexc.keys():
+                    lamb = float(a[1])
+                    f = float(a[2])
+                    gamma = float(a[3])
+                    if a[0] in b:
+                        broad = b[a[0]] * 1E5
+                    else:
+                        broad = b['ALL'] * 1E5
+                    nion = 10**Nexc[a[0]]
+                    # print(a[0], Nexc[a[0]]*ww)
+                    spec *= addAbs(wls, nion*ww, lamb, f, gamma, broad, zz)
 
     #==============================================================================
     # Add H2
@@ -204,7 +223,9 @@ for NTOTH2 in NTOTH2s:
     f.write('#NH = %.2f\n' %N['HI'])
     f.write('#NH2 = %.2f at T = %i K\n' %(NTOTH2, TEMP))
     f.write('#Redshift = %.4f\n' %(z))
-    for wl, s in zip(wls, spec+dspec):
+    spec_conv, fwhm = pyasl.instrBroadGaussFast(wls, spec, 10000,
+          edgeHandling="firstlast", fullout=True)
+    for wl, s in zip(wls, spec_conv+dspec):
         f.write('%.2f\t%.3f\n' %(wl, s))
     f.close()
 
@@ -213,9 +234,9 @@ for NTOTH2 in NTOTH2s:
     #==============================================================================
     fig = plt.figure(figsize = (14,8))
     ax = fig.add_subplot(1, 1, 1)
-    ax.plot(wls, spec+dspec)
+    ax.plot(wls, spec_conv+dspec)
 
-    ax.plot(wls, spec*0, '--', color = 'black')
+    ax.plot(wls, spec_conv*0, '--', color = 'black')
     ax.set_xlabel(r'$\rm{Observed\,wavelength\, (\AA)}$')
     ax.set_ylabel(r'$\rm{Normalized\,Flux}$')
     ax.set_ylim(-2./SN, 1+4./SN)#, yerr=self.onederro[arm])
